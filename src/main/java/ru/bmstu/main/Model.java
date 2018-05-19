@@ -36,6 +36,13 @@ public class Model {
         String[] queries = input.split("\\s*;\\s*");
         TableDao tableDao = new TableDao();
         List<Table> list = tableDao.list();
+        for (String query : queries) {
+            calculateIndexesForQuery(query);
+        }
+    }
+
+    private void calculateIndexesForQuery(String query) {
+        new QueryAnalysis(query);
         System.out.println();
     }
 }
