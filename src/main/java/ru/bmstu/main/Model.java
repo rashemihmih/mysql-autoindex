@@ -35,14 +35,14 @@ public class Model {
     public void calculateIndexes(String input) {
         String[] queries = input.split("\\s*;\\s*");
         TableDao tableDao = new TableDao();
-        List<Table> list = tableDao.list();
+        List<Table> tables = tableDao.list();
         for (String query : queries) {
-            calculateIndexesForQuery(query);
+            new QueryAnalysis(query, tables);
         }
     }
 
     private void calculateIndexesForQuery(String query) {
-        new QueryAnalysis(query);
+
         System.out.println();
     }
 }

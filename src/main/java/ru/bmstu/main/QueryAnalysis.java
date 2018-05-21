@@ -1,22 +1,33 @@
 package ru.bmstu.main;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import ru.bmstu.dao.Table;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class QueryAnalysis {
+    private Map<String, Table> namesToTables;
 
-    public QueryAnalysis(String query) {
-        query = query.toLowerCase();
+    public QueryAnalysis(String query, List<Table> tables) {
+        namesToTables = tables.stream().collect(Collectors.toMap(Table::getName, table -> table));
+        query = query.toLowerCase()
+                .replaceAll("\\(", " ( ")
+                .replaceAll("\\)", " ) ")
+                .replaceAll("\\s+", " ")
+                .replaceAll("\\s*>\\s*", ">")
+                .replaceAll("\\s*<\\s*", "<")
+                .replaceAll("\\s*=\\s*", "=")
+                .replaceAll("\\s*>=\\s*", ">=")
+                .replaceAll("\\s*<=\\s*", "<=");
         Map<Integer, List<Integer>> depthToSelectsStarts = depthToSelectStarts(query);
         Map<Integer, List<Pair<Integer, Integer>>> depthToBounds = depthToBounds(query, depthToSelectsStarts);
         List<String> simpleQueries = simpleQueries(query, depthToBounds);
-        System.out.println();
+        for (String simpleQuery : simpleQueries) {
+            indexesForSimpleQuery(simpleQuery);
+        }
     }
 
     private Map<Integer, List<Integer>> depthToSelectStarts(String query) {
@@ -117,5 +128,56 @@ public class QueryAnalysis {
             depth++;
         }
         return simpleQueries;
+    }
+
+    private List<Map<Table, List<String>>> indexesForSimpleQuery(String query) {
+        List<Map<Table, List<String>>> indexes = new ArrayList<>();
+        int wherePos = pos(query, "where");
+        int orderPos = pos(query, "order by");
+        int groupPos = pos(query, "group by");
+        if (wherePos < 0 && orderPos < 0 && groupPos < 0) {
+            return indexes;
+        }
+        int fromPos = pos(query, "from");
+        if (wherePos > 0) {
+            String from = query.substring(fromPos + 4, wherePos);
+            int joinPos = pos(from, "join");
+            if (joinPos < 0) {
+                String tableName = StringUtils.trim(from);
+                Table table = namesToTables.get(tableName);
+                Map<Table, List<String>> indexesForTable = new HashMap<>();
+                indexesForTable.put(table, new ArrayList<>());
+                indexes.add(indexesForTable);
+            }
+        }
+        return indexes;
+    }
+
+    private int pos(String str, String substring) {
+        int i = str.indexOf(substring);
+        while (i >= 0) {
+            boolean separated = true;
+            if (i > 0) {
+                char charBefore = str.charAt(i - 1);
+                if (charBefore != ' ') {
+                    separated = false;
+                }
+            }
+            if (!separated) {
+                i = str.indexOf(substring, i);
+                continue;
+            }
+            if (i + substring.length() < str.length() - 1) {
+                char charAfter = str.charAt(i + substring.length());
+                if (charAfter != ' ') {
+                    separated = false;
+                }
+            }
+            if (separated) {
+                return i;
+            }
+            i = str.indexOf(substring, i);
+        }
+        return i;
     }
 }
