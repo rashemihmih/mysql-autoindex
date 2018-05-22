@@ -1,11 +1,11 @@
 package ru.bmstu.dao;
 
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.List;
 
 public interface Dao<T extends Entity> {
-    void create(T entity);
+    Connection connection = DBService.getInstance().getConnection();
 
-    void delete(T entity);
-
-    List<T> list();
+    List<T> list() throws SQLException;
 }

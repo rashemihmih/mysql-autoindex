@@ -1,11 +1,10 @@
 package ru.bmstu.main;
 
-import ru.bmstu.dao.DBService;
-import ru.bmstu.dao.Table;
-import ru.bmstu.dao.TableDao;
+import ru.bmstu.dao.*;
 
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
 
 public class Model {
     private static final Model instance = new Model();
@@ -34,10 +33,23 @@ public class Model {
 
     public void calculateIndexes(String input) {
         String[] queries = input.split("\\s*;\\s*");
-        TableDao tableDao = new TableDao();
-        List<Table> tables = tableDao.list();
+        TableDao tableDao = new TableDaoImpl();
+        List<Table> tables;
+        try {
+            tables = tableDao.list();
+        } catch (SQLException e) {
+            e.printStackTrace();
+            controller.showDialog("Не удалось получить список таблиц и индексов", e.getMessage());
+            return;
+        }
         for (String query : queries) {
-            new QueryAnalysis(query, tables);
+            Map<Table, List<List<String>>> queryIndexes = new QueryAnalysis(query, tables).indexes();
+            try {
+                Explain explain = Explain.forQuery(query);
+                System.out.println();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
         }
     }
 

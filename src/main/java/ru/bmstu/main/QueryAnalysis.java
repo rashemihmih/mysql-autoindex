@@ -3,31 +3,92 @@ package ru.bmstu.main;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import ru.bmstu.dao.Index;
 import ru.bmstu.dao.Table;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
 public class QueryAnalysis {
-    private Map<String, Table> namesToTables;
+    private List<Table> tables;
+    Map<Table, List<List<String>>> tableToIndexes = new HashMap<>();
 
     public QueryAnalysis(String query, List<Table> tables) {
-        namesToTables = tables.stream().collect(Collectors.toMap(Table::getName, table -> table));
+        this.tables = tables;
         query = query.toLowerCase()
                 .replaceAll("\\(", " ( ")
                 .replaceAll("\\)", " ) ")
                 .replaceAll("\\s+", " ")
-                .replaceAll("\\s*>\\s*", ">")
-                .replaceAll("\\s*<\\s*", "<")
-                .replaceAll("\\s*=\\s*", "=")
-                .replaceAll("\\s*>=\\s*", ">=")
-                .replaceAll("\\s*<=\\s*", "<=");
+                .replaceAll("\\s*>\\s*", " > ")
+                .replaceAll("\\s*<\\s*", " < ")
+                .replaceAll("\\s*=\\s*", " = ")
+                .replaceAll("\\s*>=\\s*", " >= ")
+                .replaceAll("\\s*<=\\s*", " <= ")
+                .replaceAll("\\s*,\\s*", ",");
         Map<Integer, List<Integer>> depthToSelectsStarts = depthToSelectStarts(query);
         Map<Integer, List<Pair<Integer, Integer>>> depthToBounds = depthToBounds(query, depthToSelectsStarts);
         List<String> simpleQueries = simpleQueries(query, depthToBounds);
-        for (String simpleQuery : simpleQueries) {
-            indexesForSimpleQuery(simpleQuery);
+        List<Map<Table, List<String>>> simpleQueryIndexes = simpleQueries.stream()
+                .map(StringUtils::trim)
+                .map(this::indexesForSimpleQuery)
+                .collect(Collectors.toList());
+        for (Map<Table, List<String>> map : simpleQueryIndexes) {
+            for (Map.Entry<Table, List<String>> entry : map.entrySet()) {
+                Table table = entry.getKey();
+                List<String> index = entry.getValue();
+                List<List<String>> indexes = tableToIndexes.get(table);
+                if (indexes == null) {
+                    indexes = new ArrayList<>();
+                }
+                indexes.add(index);
+                tableToIndexes.put(table, indexes);
+            }
         }
+        // убираем индексы-подиндексы
+        for (Map.Entry<Table, List<List<String>>> entry : tableToIndexes.entrySet()) {
+            List<List<String>> indexes = entry.getValue();
+            Set<Integer> remove = new HashSet<>();
+            for (int i = 0; i < indexes.size(); i++) {
+                for (int j = 0; j < indexes.size(); j++) {
+                    if (i != j && isSubIndex(indexes.get(i), indexes.get(j))) {
+                        remove.add(i);
+                        break;
+                    }
+                }
+            }
+            remove.stream()
+                    .sorted(Comparator.reverseOrder())
+                    .forEach(i -> indexes.remove(indexes.get(i)));
+        }
+        // убираем индексы-подиндексы уже существующих индексов
+        for (Map.Entry<Table, List<List<String>>> entry : tableToIndexes.entrySet()) {
+            Table table = entry.getKey();
+            List<List<String>> indexes = entry.getValue();
+            List<Index> existingIndexes = table.getIndexes();
+            indexes.removeIf(index ->
+                    existingIndexes.stream()
+                            .anyMatch(existingIndex ->
+                                    existingIndex.getColumns().equals(index)
+                                            || isSubIndex(index, existingIndex.getColumns())));
+        }
+    }
+
+    public Map<Table, List<List<String>>> indexes() {
+        return tableToIndexes;
+    }
+
+    private boolean isSubIndex(List<String> thisIndex, List<String> anotherIndex) {
+        if (thisIndex.size() > anotherIndex.size()) {
+            return false;
+        }
+        for (int i = 0; i < thisIndex.size(); i++) {
+            if (!thisIndex.get(i).equals(anotherIndex.get(i))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private Map<Integer, List<Integer>> depthToSelectStarts(String query) {
@@ -78,8 +139,12 @@ public class QueryAnalysis {
                     } else if (query.charAt(j) == (')')) {
                         depth--;
                     }
-                    if (depth < 0 || j == query.length() - 1) {
+                    if (depth < 0) {
                         end = j;
+                        break;
+                    }
+                    if (depth == query.length() - 1) {
+                        end = query.length();
                         break;
                     }
                 }
@@ -130,30 +195,173 @@ public class QueryAnalysis {
         return simpleQueries;
     }
 
-    private List<Map<Table, List<String>>> indexesForSimpleQuery(String query) {
-        List<Map<Table, List<String>>> indexes = new ArrayList<>();
+    private Map<Table, List<String>> indexesForSimpleQuery(String query) {
+        Map<Table, List<String>> indexes = new HashMap<>();
         int wherePos = pos(query, "where");
         int orderPos = pos(query, "order by");
         int groupPos = pos(query, "group by");
-        if (wherePos < 0 && orderPos < 0 && groupPos < 0) {
-            return indexes;
-        }
         int fromPos = pos(query, "from");
         if (wherePos > 0) {
-            String from = query.substring(fromPos + 4, wherePos);
-            int joinPos = pos(from, "join");
-            if (joinPos < 0) {
-                String tableName = StringUtils.trim(from);
-                Table table = namesToTables.get(tableName);
-                Map<Table, List<String>> indexesForTable = new HashMap<>();
-                indexesForTable.put(table, new ArrayList<>());
-                indexes.add(indexesForTable);
+            String from = query.substring(fromPos + 5, wherePos);
+            Map<Table, Set<String>> tableJoins = tableJoins(from);
+            int orPos = pos(query, "or");
+            if (orPos > 0) {
+                addIndexesForJoins(indexes, tableJoins);
+            } else {
+                String where;
+                if (groupPos > 0) {
+                    where = query.substring(wherePos + 6, groupPos);
+                } else if (orderPos > 0) {
+                    where = query.substring(wherePos + 6, orderPos);
+                } else {
+                    where = query.substring(wherePos + 6);
+                }
+                where = StringUtils.trim(where);
+                List<Table> tables = new ArrayList<>(tableJoins.keySet());
+                for (Table table : tables) {
+                    indexes.put(table, new ArrayList<>());
+                }
+                Arrays.stream(where.split(" "))
+                        .map(s -> tableForColumn(s, tables))
+                        .filter(Objects::nonNull)
+                        .forEach(tableCol -> indexes.get(tableCol.getLeft()).add(tableCol.getRight()));
+                if (orderPos > 0) {
+                    String order = query.substring(orderPos + 9);
+                    Arrays.stream(order.split(" "))
+                            .map(s -> tableForColumn(s, tables))
+                            .filter(Objects::nonNull)
+                            .forEach(tableCol -> {
+                                List<String> indexCols = indexes.get(tableCol.getLeft());
+                                if (!indexCols.isEmpty()) {
+                                    indexCols.add(tableCol.getRight());
+                                }
+                            });
+                }
+                for (Map.Entry<Table, List<String>> entry : indexes.entrySet()) {
+                    List<String> indexCols = entry.getValue();
+                    if (indexCols.isEmpty()) {
+                        tableJoins.get(entry.getKey()).stream().findAny().ifPresent(indexCols::add);
+                    }
+                }
+                indexes.entrySet().removeIf(entry -> entry.getValue().isEmpty());
             }
+        } else if (groupPos > 0) {
+            String from = query.substring(fromPos + 5, groupPos);
+            Map<Table, Set<String>> tableJoins = tableJoins(from);
+            if (tableJoins.size() > 1) {
+                addIndexesForJoins(indexes, tableJoins);
+            } else {
+                Table table = tableJoins.keySet().stream().findAny().orElse(null);
+                if (table == null) {
+                    return indexes;
+                }
+                String group = query.substring(groupPos + 9);
+                addIndexesForSubsequentColumns(indexes, group, table);
+            }
+        } else if (orderPos > 0) {
+            String from = query.substring(fromPos + 4, orderPos);
+            Map<Table, Set<String>> tableJoins = tableJoins(from);
+            if (tableJoins.size() > 1) {
+                addIndexesForJoins(indexes, tableJoins);
+            } else {
+                Table table = tableJoins.keySet().stream().findAny().orElse(null);
+                if (table == null) {
+                    return indexes;
+                }
+                String order = query.substring(orderPos + 9);
+                addIndexesForSubsequentColumns(indexes, order, table);
+            }
+        } else {
+            String from = query.substring(fromPos + 4);
+            Map<Table, Set<String>> tableJoins = tableJoins(from);
+            addIndexesForJoins(indexes, tableJoins);
         }
         return indexes;
     }
 
-    private int pos(String str, String substring) {
+    private void addIndexesForSubsequentColumns(Map<Table, List<String>> indexes, String columns, Table table) {
+        List<String> indexCols = Arrays.stream(columns.split(","))
+                .map(col -> {
+                    for (String column : table.getColumns()) {
+                        if (column.equalsIgnoreCase(col)) {
+                            return column;
+                        }
+                    }
+                    return col;
+                })
+                .collect(Collectors.toList());
+        indexes.put(table, indexCols);
+    }
+
+    private void addIndexesForJoins(Map<Table, List<String>> indexes, Map<Table, Set<String>> tableJoins) {
+        for (Map.Entry<Table, Set<String>> entry : tableJoins.entrySet()) {
+            for (String column : entry.getValue()) {
+                List<String> columns = new ArrayList<>();
+                columns.add(column);
+                indexes.put(entry.getKey(), columns);
+            }
+        }
+    }
+
+    private Map<Table, Set<String>> tableJoins(String from) {
+        Map<Table, Set<String>> tableJoins = new HashMap<>();
+        from = StringUtils.trim(from);
+        int joinPos = pos(from, "join");
+        if (joinPos < 0) {
+            Table table = tableFromName(from, tables);
+            if (table != null) {
+                tableJoins.put(table, Collections.emptySet());
+            }
+        } else {
+            String[] joinSplit = from.split(" join ");
+            Table tableFromName = tableFromName(joinSplit[0], tables);
+            if (tableFromName != null) {
+                tableJoins.put(tableFromName, new HashSet<>());
+            }
+            for (int i = 1; i < joinSplit.length; i++) {
+                String[] onSplit = joinSplit[i].split(" on ");
+                Table t = tableFromName(onSplit[0], tables);
+                if (t != null) {
+                    tableJoins.put(t, new HashSet<>());
+                }
+                String[] eqSplit = onSplit[1].split(" = ");
+                for (String col : eqSplit) {
+                    Pair<Table, String> tableCol = tableForColumn(col, tables);
+                    if (tableCol != null) {
+                        tableJoins.get(tableCol.getLeft()).add(tableCol.getRight());
+                    }
+                }
+            }
+        }
+        return tableJoins;
+    }
+
+    @Nullable
+    private Pair<Table, String> tableForColumn(String col, List<Table> tables) {
+        if (col.contains(".")) {
+            String[] dotSplit = col.split("\\.");
+            Table table = tableFromName(dotSplit[0], this.tables);
+            if (table == null) {
+                return null;
+            }
+            for (String column : table.getColumns()) {
+                if (column.equalsIgnoreCase(dotSplit[1])) {
+                    return new ImmutablePair<>(table, column);
+                }
+            }
+        } else {
+            for (Table table : tables) {
+                for (String column : table.getColumns()) {
+                    if (col.equalsIgnoreCase(column)) {
+                        return new ImmutablePair<>(table, column);
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private int pos(@NotNull String str, String substring) {
         int i = str.indexOf(substring);
         while (i >= 0) {
             boolean separated = true;
@@ -176,8 +384,18 @@ public class QueryAnalysis {
             if (separated) {
                 return i;
             }
-            i = str.indexOf(substring, i);
+            i = str.indexOf(substring + 1, i);
         }
         return i;
+    }
+
+    @Nullable
+    private Table tableFromName(String name, List<Table> tables) {
+        for (Table table : tables) {
+            if (table.getName().equalsIgnoreCase(name)) {
+                return table;
+            }
+        }
+        return null;
     }
 }
