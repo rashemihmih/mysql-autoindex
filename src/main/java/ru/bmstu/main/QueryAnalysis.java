@@ -13,7 +13,7 @@ import java.util.stream.Collectors;
 
 public class QueryAnalysis {
     private List<Table> tables;
-    Map<Table, List<List<String>>> tableToIndexes = new HashMap<>();
+    private Map<Table, List<Index>> queryIndexes = new HashMap<>();
 
     public QueryAnalysis(String query, List<Table> tables) {
         this.tables = tables;
@@ -34,6 +34,7 @@ public class QueryAnalysis {
                 .map(StringUtils::trim)
                 .map(this::indexesForSimpleQuery)
                 .collect(Collectors.toList());
+        Map<Table, List<List<String>>> tableToIndexes = new HashMap<>();
         for (Map<Table, List<String>> map : simpleQueryIndexes) {
             for (Map.Entry<Table, List<String>> entry : map.entrySet()) {
                 Table table = entry.getKey();
@@ -73,13 +74,26 @@ public class QueryAnalysis {
                                     existingIndex.getColumns().equals(index)
                                             || isSubIndex(index, existingIndex.getColumns())));
         }
+        for (Map.Entry<Table, List<List<String>>> entry : tableToIndexes.entrySet()) {
+            Table table = entry.getKey();
+            List<List<String>> indexesColumns = entry.getValue();
+            List<Index> indexes = new ArrayList<>();
+            for (List<String> indexColumns : indexesColumns) {
+                String indexName = "index_" + table.getName() + "_" +
+                        indexColumns.stream().collect(Collectors.joining("_"));
+                Index index = new Index(indexName);
+                index.getColumns().addAll(indexColumns);
+                indexes.add(index);
+            }
+            queryIndexes.put(table, indexes);
+        }
     }
 
-    public Map<Table, List<List<String>>> indexes() {
-        return tableToIndexes;
+    public Map<Table, List<Index>> indexes() {
+        return queryIndexes;
     }
 
-    private boolean isSubIndex(List<String> thisIndex, List<String> anotherIndex) {
+    public static boolean isSubIndex(List<String> thisIndex, List<String> anotherIndex) {
         if (thisIndex.size() > anotherIndex.size()) {
             return false;
         }

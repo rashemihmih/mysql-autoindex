@@ -40,9 +40,8 @@ public class Controller {
         model.calculateIndexes(taInput.getText());
     }
 
-    @FXML
-    private void createIndexes() {
-
+    public void updateResult(String result) {
+        taResult.setText(result);
     }
 
     public void showDialog(String header, String content) {
