@@ -4,7 +4,9 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import ru.bmstu.dao.*;
 
+import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -49,8 +51,10 @@ public class Model {
         Map<String, List<Pair<Table, Index>>> resultIndexes = new HashMap<>();
         Map<String, Explain> oldExplains = new HashMap<>();
         Map<String, Explain> newExplains = new HashMap<>();
+//        Map<String, Long> oldTimes = new HashMap<>();
         for (String query : queries) {
             try {
+//                oldTimes.put(query, measureQueryTime(query));
                 oldExplains.put(query, Explain.forQuery(query));
             } catch (SQLException ignore) {
             }
@@ -140,6 +144,19 @@ public class Model {
                             index.getColumns().stream().collect(Collectors.joining(", "))));
                 }
             }
+//            Long oldTime = oldTimes.get(query);
+//            if (oldTime != null) {
+//                try {
+//                    long newTime = measureQueryTime(query);
+//                    result.append("\nВремя:\n")
+//                            .append("До добавления индексов: ")
+//                            .append(oldTime)
+//                            .append("\nПосле добавления индексов: ")
+//                            .append(newTime)
+//                            .append("\n");
+//                } catch (SQLException ignore) {
+//                }
+//            }
             Explain newExplain = newExplains.get(query);
             if (newExplain != null) {
                 result.append("\nЧисло строк, проанализированных при выполнении запроса:\n")
@@ -150,5 +167,15 @@ public class Model {
             }
         }
         controller.updateResult(result.toString());
+    }
+
+    private long measureQueryTime(String query) throws SQLException {
+        try (Statement statement = dbService.getConnection().createStatement()) {
+            long start = System.currentTimeMillis();
+            for (int i = 0; i < 10; i++) {
+                statement.executeQuery(query);
+            }
+            return (System.currentTimeMillis() - start) / 10;
+        }
     }
 }
