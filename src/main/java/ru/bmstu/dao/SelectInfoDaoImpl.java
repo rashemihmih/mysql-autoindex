@@ -6,16 +6,16 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
-public class QueryInfoDaoImpl implements QueryInfoDao {
+public class SelectInfoDaoImpl implements SelectInfoDao {
     private String query;
 
-    public QueryInfoDaoImpl(String query) {
+    public SelectInfoDaoImpl(String query) {
         this.query = query;
     }
 
     @Override
-    public List<QueryInfo> list() throws SQLException {
-        List<QueryInfo> queryInfoList = new ArrayList<>();
+    public List<SelectInfo> list() throws SQLException {
+        List<SelectInfo> selectInfoList = new ArrayList<>();
         String explainQuery = "EXPLAIN " + query;
         try (Statement statement = connection.createStatement();
              ResultSet resultSet = statement.executeQuery(explainQuery)) {
@@ -23,9 +23,9 @@ public class QueryInfoDaoImpl implements QueryInfoDao {
                 String table = resultSet.getString("table");
                 String key = resultSet.getString("key");
                 int rows = resultSet.getInt("rows");
-                queryInfoList.add(new QueryInfo(table, key, rows));
+                selectInfoList.add(new SelectInfo(table, key, rows));
             }
         }
-        return queryInfoList;
+        return selectInfoList;
     }
 }

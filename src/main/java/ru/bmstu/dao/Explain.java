@@ -4,22 +4,22 @@ import java.sql.SQLException;
 import java.util.List;
 
 public class Explain {
-    private List<QueryInfo> queryInfoList;
+    private List<SelectInfo> selectInfoList;
 
-    private Explain(List<QueryInfo> queryInfoList) {
-        this.queryInfoList = queryInfoList;
+    private Explain(List<SelectInfo> selectInfoList) {
+        this.selectInfoList = selectInfoList;
     }
 
     public boolean isKeyUsed(String key) {
-        return queryInfoList.stream().anyMatch(queryInfo -> key.equals(queryInfo.getKey()));
+        return selectInfoList.stream().anyMatch(selectInfo -> key.equals(selectInfo.getKey()));
     }
 
     public int rows() {
-        return queryInfoList.stream().mapToInt(QueryInfo::getRows).sum();
+        return selectInfoList.stream().mapToInt(SelectInfo::getRows).sum();
     }
 
     public static Explain forQuery(String query) throws SQLException {
-        QueryInfoDao queryInfoDao = new QueryInfoDaoImpl(query);
-        return new Explain(queryInfoDao.list());
+        SelectInfoDao selectInfoDao = new SelectInfoDaoImpl(query);
+        return new Explain(selectInfoDao.list());
     }
 }

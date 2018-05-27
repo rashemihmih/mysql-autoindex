@@ -1,11 +1,11 @@
 package ru.bmstu.dao;
 
-public class QueryInfo implements Entity {
+public class SelectInfo implements Entity {
     private String table;
     private String key;
     private int rows;
 
-    public QueryInfo(String table, String key, int rows) {
+    public SelectInfo(String table, String key, int rows) {
         this.table = table;
         this.key = key;
         this.rows = rows;
