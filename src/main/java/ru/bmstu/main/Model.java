@@ -126,7 +126,7 @@ public class Model {
             result.append(SEPARATOR)
                     .append("Запрос:\n")
                     .append(query)
-                    .append("\n\n");
+                    .append(";\n\n");
             Explain oldExplain = oldExplains.get(query);
             if (oldExplain == null) {
                 result.append("Не удалось выполнить запрос\n");
