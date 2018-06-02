@@ -396,6 +396,13 @@ public class QueryAnalysis {
                     }
                 }
             }
+            for (Map.Entry<Table, List<String>> entry : indexes.entrySet()) {
+                List<String> indexCols = entry.getValue();
+                if (indexCols.isEmpty()) {
+                    tableJoins.get(entry.getKey()).stream().findAny().ifPresent(indexCols::add);
+                }
+            }
+            indexes.entrySet().removeIf(entry -> entry.getValue().isEmpty());
         } else if (orderPos > 0) {
             String from = query.substring(fromPos + 4, orderPos);
             Map<Table, Set<String>> tableJoins = tableJoins(from);
@@ -451,6 +458,13 @@ public class QueryAnalysis {
                     }
                 }
             }
+            for (Map.Entry<Table, List<String>> entry : indexes.entrySet()) {
+                List<String> indexCols = entry.getValue();
+                if (indexCols.isEmpty()) {
+                    tableJoins.get(entry.getKey()).stream().findAny().ifPresent(indexCols::add);
+                }
+            }
+            indexes.entrySet().removeIf(entry -> entry.getValue().isEmpty());
         } else {
             String from = query.substring(fromPos + 4);
             Map<Table, Set<String>> tableJoins = tableJoins(from);
