@@ -246,7 +246,7 @@ public class QueryAnalysis {
                             .filter(Objects::nonNull)
                             .forEach(tableCol -> {
                                 List<String> indexCols = indexes.get(tableCol.getLeft());
-                                if (!indexCols.isEmpty()) {
+                                if (!indexCols.isEmpty() && !indexCols.contains(tableCol.getRight())) {
                                     indexCols.add(tableCol.getRight());
                                 }
                             });
