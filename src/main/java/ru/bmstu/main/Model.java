@@ -4,9 +4,7 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import ru.bmstu.dao.*;
 
-import java.sql.Connection;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -46,8 +44,10 @@ public class Model {
             controller.showDialog("Не удалось получить список таблиц и индексов", e.getMessage());
             return;
         }
-        List<String> queries = Arrays.stream(input.split("\\s*;\\s*")).distinct().collect(Collectors.toList());
         StringBuilder result = new StringBuilder();
+        result.append("До добавления индексов:\n");
+        reportIndexes(tables, result);
+        List<String> queries = Arrays.stream(input.split("\\s*;\\s*")).distinct().collect(Collectors.toList());
         Map<String, List<Pair<Table, Index>>> resultIndexes = new HashMap<>();
         Map<String, Explain> oldExplains = new HashMap<>();
         Map<String, Explain> newExplains = new HashMap<>();
@@ -122,6 +122,9 @@ public class Model {
                 }
             }
         }
+        result.append(SEPARATOR);
+        result.append("После добавления индексов:\n");
+        reportIndexes(tables, result);
         for (String query : queries) {
             result.append(SEPARATOR)
                     .append("Запрос:\n")
@@ -169,13 +172,26 @@ public class Model {
         controller.updateResult(result.toString());
     }
 
-    private long measureQueryTime(String query) throws SQLException {
-        try (Statement statement = dbService.getConnection().createStatement()) {
-            long start = System.currentTimeMillis();
-            for (int i = 0; i < 10; i++) {
-                statement.executeQuery(query);
+    private void reportIndexes(List<Table> tables, StringBuilder result) {
+        for (Table table : tables) {
+            result.append("\nТаблица: ").append(table.getName()).append('\n');
+            result.append("Индексы: \n");
+            for (Index index : table.getIndexes()) {
+                result.append(index.getName())
+                        .append('(')
+                        .append(index.getColumns().stream().collect(Collectors.joining(", ")))
+                        .append(")\n");
             }
-            return (System.currentTimeMillis() - start) / 10;
         }
     }
+
+//    private long measureQueryTime(String query) throws SQLException {
+//        try (Statement statement = dbService.getConnection().createStatement()) {
+//            long start = System.currentTimeMillis();
+//            for (int i = 0; i < 10; i++) {
+//                statement.executeQuery(query);
+//            }
+//            return (System.currentTimeMillis() - start) / 10;
+//        }
+//    }
 }
