@@ -17,6 +17,8 @@ public class Controller {
     private TextArea taInput;
     @FXML
     private TextArea taResult;
+    @FXML
+    private Button btnStart;
 
     public Controller() {
         instance = this;
@@ -35,12 +37,15 @@ public class Controller {
 
     @FXML
     private void calculateIndexes() {
+        btnStart.setDisable(true);
         tabPane.getSelectionModel().select(tabResult);
-        taResult.setText("Подождите...");
         model.calculateIndexes(taInput.getText());
     }
 
-    public void updateResult(String result) {
+    public void updateResult(String result, boolean isFinished) {
+        if (isFinished) {
+            btnStart.setDisable(false);
+        }
         taResult.setText(result);
     }
 

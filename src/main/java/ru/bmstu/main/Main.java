@@ -30,6 +30,7 @@ public class Main extends Application {
     @Override
     public void stop() {
         DBService.getInstance().disconnect();
+        Model.getInstance().shutdownExecutor();
     }
 
     private static void loadConfig() throws IOException {

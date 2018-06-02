@@ -6,7 +6,7 @@
 <?import javafx.scene.control.TextArea?>
 <?import javafx.scene.layout.AnchorPane?>
 
-<AnchorPane prefHeight="600.0" prefWidth="800.0" xmlns="http://javafx.com/javafx/8.0.111" xmlns:fx="http://javafx.com/fxml/1" fx:controller="ru.bmstu.main.Controller">
+<AnchorPane prefHeight="600.0" prefWidth="800.0" xmlns="http://javafx.com/javafx/9.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="ru.bmstu.main.Controller">
     <children>
         <TabPane fx:id="tabPane" prefHeight="600.0" prefWidth="800.0" tabClosingPolicy="UNAVAILABLE">
             <tabs>
@@ -15,7 +15,7 @@
                         <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0">
                             <children>
                                 <TextArea fx:id="taInput" layoutX="10.0" layoutY="14.0" prefHeight="520.0" prefWidth="780.0" />
-                                <Button layoutX="14.0" layoutY="541.0" mnemonicParsing="false" onMouseClicked="#calculateIndexes" text="Построить индексы" />
+                                <Button fx:id="btnStart" layoutX="14.0" layoutY="541.0" mnemonicParsing="false" onMouseClicked="#calculateIndexes" text="Построить индексы" />
                             </children>
                         </AnchorPane>
                     </content>
