@@ -124,11 +124,12 @@ public class Model {
                     for (Map.Entry<String, List<Pair<Table, Index>>> anotherEntry : resultIndexes.entrySet()) {
                         if (!anotherEntry.getKey().equals(entry.getKey())) {
                             if (anotherEntry.getValue().stream()
-                                    .anyMatch(index -> QueryAnalysis.isSubIndex(
-                                            next.getRight().getColumns(),
+                                    .anyMatch(index -> next.getLeft().equals(index.getLeft())
+                                            && QueryAnalysis.isSubIndex(next.getRight().getColumns(),
                                             index.getRight().getColumns()))) {
                                 try {
                                     new IndexDaoImpl(next.getLeft().getName()).delete(next.getRight());
+                                    next.getLeft().getIndexes().remove(next.getRight());
                                 } catch (SQLException e) {
                                     e.printStackTrace();
                                 }
